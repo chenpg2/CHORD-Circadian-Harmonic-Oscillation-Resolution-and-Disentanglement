@@ -8,7 +8,7 @@
 
 A two-stage statistical framework for detecting 12-hour ultradian rhythms in transcriptomic data and disentangling independent oscillations from circadian harmonic artifacts.
 
-> **Paper:** Fang C. et al. (2026) *CHORD: Detecting and Classifying Independent 12-Hour Rhythms from Circadian Harmonics.* (under review).
+> **Paper:** Chen P. et al. (2026) *CHORD: Detecting and Classifying Independent 12-Hour Rhythms from Circadian Harmonics.* (submitted).
 
 ## The Problem
 
@@ -124,10 +124,10 @@ chord/
 ## Citation
 
 ```bibtex
-@article{fang2026chord,
+@article{chen2026chord,
   title={CHORD: Detecting and Classifying Independent 12-Hour Rhythms
          from Circadian Harmonics},
-  author={Fang, Cong},
+  author={Chen, Peigen},
   year={2026}
 }
 ```
