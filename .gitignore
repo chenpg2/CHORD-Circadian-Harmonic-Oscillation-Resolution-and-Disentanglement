@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Archive (historical benchmark data — not for GitHub)
+archive/
+
+# Large data files
+data/*.h5
+data/*.hdf5
+data/*.pkl
+data/*.pickle
+
+# Results (large CSVs — keep only v9 summary metrics)
+results/benchmark_v9/*.log
+results/benchmark_v9/real_results.csv
+results/benchmark_v9/downsampling_chord_v9.csv
+results/benchmark_v9/pub_figures/*.png
+
+# Misc
+*.tar.gz
+.coverage
+htmlcov/
+# Publication materials (manuscript under review — not for public repo)
+publication/
+docs/manuscript/
+docs/plans/
+
+# Word temp files
+~$*
+scripts/chord/
+data/*.soft.gz
+data/*.npz

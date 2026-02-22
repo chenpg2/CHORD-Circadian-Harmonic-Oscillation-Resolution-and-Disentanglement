@@ -1,0 +1,8 @@
+method,n_conserved_genes,n_detected_any_dataset,n_detected_all_datasets,recovery_any,recovery_all,n_datasets
+CHORD,9,9,0,1.0,0.0,11
+Lomb_Scargle,9,6,0,0.6666666666666666,0.0,11
+Cosinor,9,8,0,0.8888888888888888,0.0,11
+Harmonic_Regression,9,6,0,0.6666666666666666,0.0,11
+JTK_CYCLE,9,4,0,0.4444444444444444,0.0,11
+RAIN,9,3,0,0.3333333333333333,0.0,11
+Pencil,9,0,0,0.0,0.0,11

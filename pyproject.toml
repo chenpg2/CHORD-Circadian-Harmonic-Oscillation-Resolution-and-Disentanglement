@@ -1,0 +1,128 @@
+[build-system]
+requires = ["hatchling>=1.18"]
+build-backend = "hatchling.build"
+
+# ---------------------------------------------------------------------------
+# Project metadata
+# ---------------------------------------------------------------------------
+[project]
+name = "chord-rhythm"
+version = "1.0.0"
+description = "Circadian Harmonic Oscillation Resolver & Disentangler — a novel algorithm for detecting and disentangling ultradian rhythms (12h, 8h, 6h, 4h) from circadian harmonics in transcriptomic time-series data"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+authors = [
+    { name = "Cong Fang" },
+]
+keywords = [
+    "circadian",
+    "ultradian",
+    "rhythm",
+    "12-hour",
+    "harmonic",
+    "disentangle",
+    "gene expression",
+    "transcriptomics",
+    "Bayesian",
+    "neural ODE",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+
+# Core dependencies (installed by default)
+dependencies = [
+    "numpy>=1.22",
+    "scipy>=1.9",
+    "pandas>=1.5",
+    "joblib>=1.2",
+    "tqdm",
+]
+
+# ---------------------------------------------------------------------------
+# Optional / layered dependencies
+# ---------------------------------------------------------------------------
+[project.optional-dependencies]
+bayes = [
+    "numpyro>=0.13",
+    "jax>=0.4",
+    "jaxlib>=0.4",
+]
+deep = [
+    "torch>=2.0",
+    "torchdiffeq>=0.2",
+]
+full = [
+    "chord-rhythm[bayes]",
+    "chord-rhythm[deep]",
+]
+viz = [
+    "matplotlib>=3.5",
+]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "black",
+    "ruff",
+    "mypy",
+    "matplotlib>=3.5",
+]
+
+# ---------------------------------------------------------------------------
+# Entry points
+# ---------------------------------------------------------------------------
+[project.scripts]
+chord = "chord.cli:main"
+
+# ---------------------------------------------------------------------------
+# URLs
+# ---------------------------------------------------------------------------
+[project.urls]
+Homepage = "https://github.com/chenpg2/CHORD-Circadian-Harmonic-Oscillation-Resolution-and-Disentanglement"
+Repository = "https://github.com/chenpg2/CHORD-Circadian-Harmonic-Oscillation-Resolution-and-Disentanglement"
+
+# ---------------------------------------------------------------------------
+# Hatch — src layout
+# ---------------------------------------------------------------------------
+[tool.hatch.build.targets.wheel]
+packages = ["src/chord"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/chord", "tests", "README.md", "LICENSE"]
+
+# ---------------------------------------------------------------------------
+# Tool configuration
+# ---------------------------------------------------------------------------
+[tool.ruff]
+target-version = "py39"
+line-length = 99
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-v --tb=short"
+
+[tool.black]
+target-version = ["py39"]
+line-length = 99
