@@ -506,6 +506,109 @@ def pulse_circadian(
 
 
 # ============================================================================
+# Scenario 16: Class C — intersection of two anti-phase 24-h processes
+# ============================================================================
+def intersection_harmonic(
+    t: Optional[np.ndarray] = None,
+    A: float = 1.5,
+    A_s: float = 0.9,
+    A_d: float = 0.9,
+    d0: float = 0.15,
+    phi_s: float = 0.0,
+    antiphase_jitter: float = 0.0,
+    M: float = 5.0,
+    noise_sd: float = 0.5,
+    seed: Optional[int] = None,
+) -> Result:
+    """Class C: a 12-h rhythm from the intersection of two anti-phase 24-h processes.
+
+    Models the Hughes (2009) mechanism: an mRNA level M(t) governed by
+
+        dM/dt = S(t) - D(t) * M(t)
+
+    where synthesis S(t) and degradation D(t) are both 24-h rhythms ~pi out of
+    phase. The multiplicative D(t)*M(t) term mixes the two 24-h rhythms into a
+    *genuine* 12-h component, even though NO element oscillates at 12 h. This is a
+    circadian-driven (not autonomous) 12-h rhythm — distinct from both a harmonic
+    of a single non-sinusoidal 24-h waveform (Class A) and an independent 12-h
+    oscillator (Class B).
+
+    Parameters
+    ----------
+    A : float
+        Target amplitude (std) of the AC component after normalisation.
+    A_s, A_d : float
+        Relative modulation depths of synthesis / degradation (0..1).
+    d0 : float
+        Baseline degradation rate (sets the mRNA time-constant).
+    phi_s : float
+        Phase of the synthesis rhythm (radians).
+    antiphase_jitter : float
+        Degradation phase = phi_s + pi + U(-jitter, jitter); 0 = exact anti-phase.
+    M : float
+        MESOR (baseline) added after normalisation.
+    noise_sd : float
+        Gaussian observational noise.
+    seed : int, optional
+        Random seed.
+
+    Returns
+    -------
+    dict with keys t, y, y_clean, truth
+    """
+    if t is None:
+        t = _default_timepoints()
+    if d0 <= 0:
+        raise ValueError(f"d0 (baseline degradation) must be > 0, got {d0!r}")
+    # Keep synthesis and degradation non-negative over the cycle (a negative rate
+    # is unphysical and breaks the periodic-steady-state assumption): clip the
+    # modulation depths to [0, 1].
+    A_s = float(np.clip(A_s, 0.0, 1.0))
+    A_d = float(np.clip(A_d, 0.0, 1.0))
+    rng = _make_rng(seed)
+    w = 2.0 * np.pi / 24.0
+    phi_d = phi_s + np.pi + rng.uniform(-antiphase_jitter, antiphase_jitter)
+
+    # Integrate the ODE to a stable periodic regime (fine Euler), then sample the
+    # last 48 h aligned to the requested time grid. The grid spans [0, t_max]
+    # inclusive (note the + dt) so interpolation covers a caller-supplied t up to
+    # the full 48 h endpoint without silently clamping.
+    dt = 0.05
+    t_max = 12 * 24.0
+    grid = np.arange(0.0, t_max + dt, dt)
+    m = 1.0
+    traj = np.empty_like(grid)
+    for i, tau in enumerate(grid):
+        synth = 1.0 + A_s * np.cos(w * tau - phi_s)
+        degr = d0 * (1.0 + A_d * np.cos(w * tau - phi_d))
+        m = m + dt * (synth - degr * m)
+        traj[i] = m
+
+    osc = np.interp((t_max - 48.0) + t, grid, traj)
+    osc = osc - osc.mean()
+    sd = osc.std()
+    if sd > 1e-9:
+        osc = osc * (A / sd)  # normalise AC component to target amplitude
+    y_clean = M + osc
+    y = y_clean + rng.normal(0, noise_sd, len(t))
+    return {
+        "t": t, "y": y, "y_clean": y_clean,
+        "truth": {
+            "scenario": "intersection_harmonic",
+            "oscillators": [
+                {"T": 24.0, "phi": phi_s, "type": "synthesis_24h"},
+                {"T": 24.0, "phi": float(phi_d), "type": "degradation_24h"},
+            ],
+            "M": M, "noise_sd": noise_sd,
+            "class_12h": "C_intersection",
+            "has_independent_12h": False,
+            "has_harmonic_12h": False,
+            "circadian_driven_12h": True,
+        },
+    }
+
+
+# ============================================================================
 # Dispatchers
 # ============================================================================
 _SCENARIOS = {
@@ -524,6 +627,7 @@ _SCENARIOS = {
     13: square_wave_harmonic,
     14: bimodal_circadian,
     15: pulse_circadian,
+    16: intersection_harmonic,
 }
 
 SCENARIO_NAMES = {k: v.__name__ for k, v in _SCENARIOS.items()}

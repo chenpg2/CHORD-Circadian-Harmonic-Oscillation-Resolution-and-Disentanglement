@@ -54,3 +54,18 @@ docs/plans/
 scripts/chord/
 data/*.soft.gz
 data/*.npz
+
+# Internal research scaffolding (not for the public tool repo)
+plan/                       # planning docs + experiment scripts (local work record)
+memory/                     # kw-engine knowledge base (principles, paper notes)
+process/                    # kw-engine process templates
+.kw/                        # kw-engine workspace + index.db
+.omc/                       # oh-my-claudecode session state
+paper/                      # downloaded reference PDFs (copyright — never publish)
+*.log
+*.db
+
+# Abandoned cross-sectional extension (kept local as audit trail, not shipped)
+src/chord/crosssectional/
+scripts/build_gse220120_matrix.py
+scripts/extract_xbp1_junctions.py
