@@ -8,8 +8,6 @@
 
 A two-stage statistical framework for detecting 12-hour ultradian rhythms in transcriptomic **time-series** and disentangling their generative origin — autonomous oscillators, circadian harmonics, or the intersection of two anti-phase 24h processes.
 
-> **Paper:** Chen P. et al. (2026) *CHORD: Detecting and Classifying Independent 12-Hour Rhythms from Circadian Harmonics.* (submitted).
-
 ## The Problem
 
 Gene expression time-series often show 12-hour periodicity. A purely spectral "12h peak" conflates **three** mechanistically distinct origins:
