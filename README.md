@@ -22,7 +22,7 @@ Standard spectral methods (Fourier, Lomb-Scargle, JTK_CYCLE) detect the peak but
 
 **Stage 1 — Detection:** Fuses four complementary methods (parametric F-test, JTK_CYCLE, RAIN, harmonic regression) via the Cauchy Combination Test (CCT), providing robust detection under arbitrary dependence.
 
-**Stage 2 — Ternary disentanglement (A / B / C):** A calibrated discriminator built on four *orthogonal* statistics, each targeting an identifiable axis of the generative taxonomy:
+**Stage 2 — Ternary disentanglement (A / B / C):** A calibrated discriminator built on five *complementary* statistics (low multicollinearity, not strictly orthogonal — all VIF ≤ 3.3), each targeting an identifiable axis of the generative taxonomy:
 
 | Statistic | Separates |
 |-----------|-----------|
@@ -31,7 +31,9 @@ Standard spectral methods (Fourier, Lomb-Scargle, JTK_CYCLE) detect the peak but
 | Amplitude structure (A₁₂/A₂₄ ratio + harmonic-decay residual) | **A** vs **C** |
 | 24h-dominance decision prior | guards strong-circadian genes against over-calling B |
 
-The statistics feed a class-weighted multinomial logistic model. This replaces CHORD's earlier additive 12-evidence score, which an internal audit found to be net-negative (most evidence sat on non-identifying axes); the rebuilt discriminator improves apples-to-apples disentanglement AUC from **0.773 → 0.826** on the same hard benchmark.
+A 12h-SNR term gates both axes; a 12h with **no detectable 24h fundamental** is unidentifiable from a single series (an autonomous oscillator and a fundamental-suppressed intersection look identical), so it is returned `ambiguous` — the honest identifiability floor.
+
+The statistics feed a class-weighted multinomial logistic model. This replaces CHORD's earlier additive 12-evidence score, which an internal audit found to be net-negative (most evidence sat on non-identifying axes); the rebuilt discriminator improves apples-to-apples disentanglement AUC from **0.773 → 0.832** on the same hard benchmark.
 
 ## Performance
 
@@ -45,11 +47,11 @@ The statistics feed a class-weighted multinomial logistic model. This replaces C
 
 | Axis | Metric |
 |------|--------|
-| Autonomous **B** vs driven **{A, C}** | apples-to-apples AUC **0.826** (legacy 0.773) |
-| **B** vs **C** (twin-peak asymmetry) | AUC **0.87–0.95** across 24 Class-C parametrizations |
-| **A** vs **C** (amplitude structure) | AUC ≈ 1.0 |
+| Autonomous **B** vs driven **{A, C}** | apples-to-apples AUC **0.832** (legacy 0.773) |
+| **B** vs **C** (twin-peak asymmetry) | AUC **0.93** (95% bootstrap CI 0.89–0.96) across four structurally distinct Class-C mechanisms |
+| **A** vs **C** (amplitude structure) | AUC **0.99** |
 
-**Interventional gold standard (the key biological test).** On the dense XBP1-LKO time-series (GSE130890, 2h sampling × 48h), genes CHORD calls autonomous-**B** have their 12h rhythm **collapse** when the XBP1/IRE1 12h clock is knocked out (12h KO/WT median 0.27, 89% die), while driven-**A** (24h harmonic) 12h is **preserved** (0.63); the circadian 24h positive control is intervention-specific (KO/WT 0.91). B-vs-driven separation **p = 1.8 × 10⁻¹⁹**, robust to amplitude matching. This confirms CHORD's autonomous/driven distinction reflects real biology, not a synthetic-benchmark artifact.
+**Interventional test (the key biological anchor).** On the dense XBP1-LKO time-series (GSE130890, 2h sampling × 48h), the hepatic **12h program collapses** when the XBP1/IRE1 12h clock is knocked out (median 12h KO/WT **0.27**) while the **24h circadian clock is preserved** (0.91) — a 12h program that dies against a 24h clock that survives, in the same knockout. The canonical autonomous 12h genes are 12h-dominant with little 24h, the regime the identifiability floor flags as unresolvable from a single series; the intervention resolves them, and among genes CHORD confidently classifies the autonomous set collapses more than the driven set (0.47 vs 0.62). Because the 12h program is one strongly co-regulated module, we report a **correlation-adjusted (CAMERA) significance** rather than a per-gene P inflated by co-regulation: program-versus-driven **p = 0.045**. The single-series identifiability floor and the intervention that resolves it are complementary.
 
 > **Scope.** CHORD is a **time-series** method (dense sampling, e.g. ≤2–4h). The binding constraint on identifiability is 12h-SNR, not sampling density — see the identifiability budget in the paper. Cross-sectional / unordered-snapshot inference is **not** supported: it is defeated by post-mortem stress confounding and per-gene SNR below the classification floor.
 
@@ -121,8 +123,8 @@ chord detect expression.csv -t 0,2,4,...,46 -o results.csv
 ## Key Results
 
 - **Detection:** F1 = 0.957 on synthetic data; 60.5% known 12h gene recovery on real data (Hughes 2009, 11 datasets)
-- **Ternary disentanglement:** B-vs-driven apples-to-apples AUC 0.826 (legacy 0.773); B-vs-C AUC 0.87–0.95; A-vs-C AUC ≈ 1.0
-- **Interventional validation:** in XBP1-LKO (GSE130890), autonomous-B 12h collapses (KO/WT 0.27) while harmonic-A 12h persists (0.63), p = 1.8 × 10⁻¹⁹; circadian 24h preserved
+- **Ternary disentanglement:** B-vs-driven apples-to-apples AUC 0.832 (legacy 0.773); B-vs-C AUC 0.93; A-vs-C AUC 0.99; posteriors well-calibrated (ECE 0.057)
+- **Interventional validation:** in XBP1-LKO (GSE130890), the 12h program collapses (median KO/WT 0.27) while the 24h clock is preserved (0.91); co-regulation-robust (CAMERA) program-vs-driven p = 0.045
 - **Robustness:** binding constraint is 12h-SNR (≈ A₁₂/σ·√M), not sampling density — autonomy AUC ≥ 0.95 at SNR ≳ 1.1
 - **Speed:** 9.7 ms/gene median; ~3 min for 20,000 genes on single CPU
 
