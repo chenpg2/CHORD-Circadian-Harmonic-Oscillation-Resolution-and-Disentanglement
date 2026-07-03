@@ -15,8 +15,16 @@ CORE_CIRCADIAN_GENES = [
     "Npas2",
 ]
 
-# Key 12h genes from Zhu 2017 Table S2 (ER stress / UPR / metabolism)
-# These are the most robust 12h genes identified by eigenvalue/pencil
+# Curated 38-gene 12h reference set (used to score detector RECOVERY, not as an
+# exhaustive ground truth). Two functional programs:
+#   * Program 1 (30 genes): UPR / ER-stress / proteostasis, anchored to IRE1a-XBP1s.
+#   * Program 2 (8 genes):  lipid / sterol metabolism (coupled to the hepatic 12h clock).
+# In-code attribution: Zhu et al. 2017 (Cell Metab 25:1305-1319), "Table S2 / most robust
+# 12h genes by eigenvalue-pencil". VERIFY BEFORE FINALIZING (see manuscript supplement
+# supp_38gene_provenance.md and references/reference_audit.md): confirm the exact source
+# table for Program 1, and that Program 2's lipid genes are from Zhu 2017 rather than a
+# different source (e.g. Meng 2020 XBP1->NAFLD, Dion 2022). Do not cite meng2020/dion2022/
+# pan2020 here until those (currently mis-cited/fabricated) references are fixed.
 KNOWN_12H_GENES_ZHU2017 = [
     "Xbp1", "Atf4", "Atf6", "Atf6b",
     "Ddit3",  # CHOP

@@ -55,13 +55,16 @@ scripts/chord/
 data/*.soft.gz
 data/*.npz
 
-# Internal research scaffolding (not for the public tool repo)
-plan/                       # planning docs + experiment scripts (local work record)
-memory/                     # kw-engine knowledge base (principles, paper notes)
-process/                    # kw-engine process templates
-.kw/                        # kw-engine workspace + index.db
-.omc/                       # oh-my-claudecode session state
-paper/                      # downloaded reference PDFs (copyright — never publish)
+# Internal research scaffolding (not for the public tool repo):
+# planning docs, kw-engine knowledge base/process/workspace, session state, reference PDFs.
+# NB: gitignore does not honor inline comments, so keep patterns on their own lines.
+plan/
+memory/
+process/
+.kw/
+.omc/
+.omx/
+paper/
 *.log
 *.db
 

@@ -39,8 +39,12 @@ from chord.simulation.generator import (
     independent_multi_ultradian,
     damped_ultradian,
     asymmetric_ultradian,
-    # Class C — intersection of two anti-phase 24-h processes
+    # Class C — intersection of two anti-phase 24-h processes (>=4 structurally
+    # different mechanisms; JBR revision R3-1)
     intersection_harmonic,
+    intersection_rectified,
+    intersection_saturating,
+    intersection_product,
     # negative controls
     pure_circadian,
     pure_noise,
@@ -220,6 +224,14 @@ _CLASS_B: List[Tuple[Callable, Dict[str, Tuple[float, float]]]] = [
 _CLASS_C: List[Tuple[Callable, Dict[str, Tuple[float, float]]]] = [
     (intersection_harmonic, {"A": (2.5, 4.5), "A_s": (0.7, 0.95), "A_d": (0.7, 0.95),
                               "d0": (0.12, 0.22), "antiphase_jitter": (0.0, 0.6)}),
+    (intersection_rectified, {"A": (2.5, 4.5), "A_s": (0.6, 0.95), "A_d": (0.6, 0.95),
+                              "gain": (1.5, 3.5), "imbalance": (0.6, 1.4),
+                              "antiphase_jitter": (0.0, 0.6)}),
+    (intersection_saturating, {"A": (2.5, 4.5), "A_s": (0.6, 0.95), "A_d": (0.6, 0.95),
+                               "gain": (2.0, 5.0), "imbalance": (0.6, 1.4),
+                               "antiphase_jitter": (0.0, 0.6)}),
+    (intersection_product, {"A": (2.5, 4.5), "A_s": (0.6, 0.95), "A_d": (0.6, 0.95),
+                            "imbalance": (0.6, 1.4), "antiphase_jitter": (0.0, 0.6)}),
 ]
 _CLASS_NONE: List[Tuple[Callable, Dict[str, Tuple[float, float]]]] = [
     (pure_circadian, {"A": (1.0, 4.0)}),

@@ -609,6 +609,106 @@ def intersection_harmonic(
 
 
 # ============================================================================
+# Broadened intersection family (JBR revision, R3-1): >=3 structurally different
+# Class-C mechanisms, so the harmonic-vs-intersection separability cannot be an
+# artefact of a single generator. Each combines two anti-phase 24-h drives through
+# a DIFFERENT monotone readout; the 12-h is emergent (no latent 12-h oscillator).
+# Imbalance != 1 or antiphase_jitter > 0 revive the 24-h fundamental (crossing toward
+# Class A) -- the built-in falsifiability boundary.
+# ============================================================================
+def _finalize_intersection(t, raw, A, M, noise_sd, rng, scenario, phi_s, phi_d, readout):
+    """Shared tail: zero-mean, normalise AC to target amplitude A, add noise, tag truth."""
+    osc = np.asarray(raw, dtype=np.float64) - float(np.mean(raw))
+    sd = float(osc.std())
+    if sd > 1e-9:
+        osc = osc * (A / sd)
+    y_clean = M + osc
+    y = y_clean + rng.normal(0, noise_sd, len(t))
+    return {
+        "t": t, "y": y, "y_clean": y_clean,
+        "truth": {
+            "scenario": scenario, "readout": readout,
+            "oscillators": [
+                {"T": 24.0, "phi": float(phi_s), "type": "drive_a_24h"},
+                {"T": 24.0, "phi": float(phi_d), "type": "drive_b_24h"},
+            ],
+            "M": M, "noise_sd": noise_sd,
+            "class_12h": "C_intersection",
+            "has_independent_12h": False, "has_harmonic_12h": False,
+            "circadian_driven_12h": True,
+        },
+    }
+
+
+def intersection_rectified(
+    t: Optional[np.ndarray] = None, A: float = 1.5, A_s: float = 0.9, A_d: float = 0.9,
+    gain: float = 2.0, imbalance: float = 1.0, phi_s: float = 0.0,
+    antiphase_jitter: float = 0.0, M: float = 5.0, noise_sd: float = 0.5,
+    seed: Optional[int] = None,
+) -> Result:
+    """Class C via additive competition: sum of two half-wave-rectified (softplus)
+    anti-phase 24-h drives -> two 'events' per day -> a genuine 12-h with no latent
+    12-h oscillator. Readout = softplus (rectification)."""
+    if t is None:
+        t = _default_timepoints()
+    A_s = float(np.clip(A_s, 0.0, 1.0)); A_d = float(np.clip(A_d, 0.0, 1.0))
+    rng = _make_rng(seed); w = 2.0 * np.pi / 24.0
+    phi_d = phi_s + np.pi + rng.uniform(-antiphase_jitter, antiphase_jitter)
+    p = A_s * np.cos(w * t - phi_s)
+    q = A_d * np.cos(w * t - phi_d)
+    softplus = lambda z: np.log1p(np.exp(-np.abs(gain * z))) + np.maximum(gain * z, 0.0)
+    raw = softplus(p) + imbalance * softplus(q)
+    return _finalize_intersection(t, raw, A, M, noise_sd, rng,
+                                  "intersection_rectified", phi_s, phi_d, "softplus")
+
+
+def intersection_saturating(
+    t: Optional[np.ndarray] = None, A: float = 1.5, A_s: float = 0.9, A_d: float = 0.9,
+    gain: float = 3.0, imbalance: float = 1.0, phi_s: float = 0.0,
+    antiphase_jitter: float = 0.0, M: float = 5.0, noise_sd: float = 0.5,
+    seed: Optional[int] = None,
+) -> Result:
+    """Class C via saturating competition: sum of two half-wave-rectified anti-phase
+    24-h drives passed through a SATURATING tanh readout -> two saturated 'events' per
+    day -> 12-h. Same competition mechanism as ``intersection_rectified`` but a DIFFERENT
+    (saturating rather than linear-tailed) nonlinearity, so a discriminator cannot exploit
+    one functional form. (A plain logistic of anti-phase drives would cancel, since
+    sig(x)+sig(-x)=1; rectifying first breaks that degeneracy.)"""
+    if t is None:
+        t = _default_timepoints()
+    A_s = float(np.clip(A_s, 0.0, 1.0)); A_d = float(np.clip(A_d, 0.0, 1.0))
+    rng = _make_rng(seed); w = 2.0 * np.pi / 24.0
+    phi_d = phi_s + np.pi + rng.uniform(-antiphase_jitter, antiphase_jitter)
+    p = A_s * np.cos(w * t - phi_s)
+    q = A_d * np.cos(w * t - phi_d)
+    raw = (np.tanh(gain * np.maximum(p, 0.0))
+           + imbalance * np.tanh(gain * np.maximum(q, 0.0)))
+    return _finalize_intersection(t, raw, A, M, noise_sd, rng,
+                                  "intersection_saturating", phi_s, phi_d, "tanh_rectified")
+
+
+def intersection_product(
+    t: Optional[np.ndarray] = None, A: float = 1.5, A_s: float = 0.9, A_d: float = 0.9,
+    imbalance: float = 1.0, phi_s: float = 0.0, antiphase_jitter: float = 0.0,
+    M: float = 5.0, noise_sd: float = 0.5, seed: Optional[int] = None,
+) -> Result:
+    """Class C via multiplicative interaction: product of two non-negative anti-phase
+    24-h drives, (1 + A_s cos)(1 + lambda*A_d cos[anti-phase]). The cross term of two
+    anti-phase 24-h rhythms is a genuine 12-h (the bilinear analogue of the
+    synthesis x degradation ODE), with no latent 12-h oscillator."""
+    if t is None:
+        t = _default_timepoints()
+    A_s = float(np.clip(A_s, 0.0, 1.0)); A_d = float(np.clip(A_d, 0.0, 1.0))
+    rng = _make_rng(seed); w = 2.0 * np.pi / 24.0
+    phi_d = phi_s + np.pi + rng.uniform(-antiphase_jitter, antiphase_jitter)
+    p = 1.0 + A_s * np.cos(w * t - phi_s)
+    q = 1.0 + imbalance * A_d * np.cos(w * t - phi_d)
+    raw = p * q
+    return _finalize_intersection(t, raw, A, M, noise_sd, rng,
+                                  "intersection_product", phi_s, phi_d, "product")
+
+
+# ============================================================================
 # Dispatchers
 # ============================================================================
 _SCENARIOS = {

@@ -1,13 +1,23 @@
 """Stage 2 redesign — ternary (A/B/C) disentanglement via calibrated orthogonal features.
 
 Replaces the legacy 12-evidence additive score (full ensemble AUC 0.776 vs
-E12-alone 0.820; see plan/CHORD_attack_matrix.md) with four orthogonal statistics
-fed into a CALIBRATED multinomial-logistic model over the literature's ternary
-generative taxonomy (plan/CHORD_deep_rebuild.md):
+E12-alone 0.820; see plan/CHORD_attack_matrix.md) with four complementary statistics
+on two identifiable axes fed into a CALIBRATED multinomial-logistic model over the
+literature's ternary generative taxonomy (plan/CHORD_deep_rebuild.md):
 
     Class A  harmonic of a non-sinusoidal 24-h waveform   (circadian-driven)
     Class B  autonomous independent 12-h oscillator        (its own clock)
     Class C  intersection of two anti-phase 24-h processes (circadian-driven)
+
+Two axes carry the ternary contrast: a PHASE axis (phase-freedom F1) separates the
+autonomous Class B (free 12-h phase) from the driven pool {A, C}; an AMPLITUDE/SHAPE
+axis (log A12/A24 + twin-peak symmetry + harmonic-decay residual) separates the harmonic
+A from the intersection C. A 12h-SNR term gates both. The features are COMPLEMENTARY with
+low multicollinearity, not orthogonal in the strict sense: the locked-phase identity
+rho = ((4r-1)/(4r+1))^2 (supp_analytic_lemmas.md) makes peak symmetry a function of the
+amplitude ratio ONLY at the phase-locked knife-edge; across the broadened four-mechanism
+Class-C family the symmetry axis carries independent B-vs-C signal (VIF ~1.1), so
+twin_peak_symmetry is a model input.
 
 This version addresses the Codex review of the rule-based first pass (P2):
   * statistics are made numerically robust (noise-aware floors, baseline-free
@@ -15,8 +25,9 @@ This version addresses the Codex review of the rule-based first pass (P2):
   * the hand-thresholded rules are replaced by a class-weighted multinomial
     logistic model fitted on the honest benchmark (chord.simulation.ternary_benchmark),
     with an abstention band (-> 'ambiguous') for the under-determined region;
-  * gates: no detectable 12 h -> 'none'; a 12 h with no 24 h fundamental cannot be
-    a harmonic of anything -> autonomous Class B by construction.
+  * gates: no detectable 12 h -> 'none'; a 12 h with no detectable 24 h fundamental is
+    unidentifiable (autonomous B and a fundamental-suppressed intersection C are
+    indistinguishable from the waveform) -> 'ambiguous' (the identifiability floor).
 
 The multinomial logistic is hand-rolled on scipy.optimize (no sklearn dependency).
 """
@@ -30,6 +41,7 @@ from scipy.stats import f as f_dist
 
 __all__ = [
     "phase_freedom_pvalue",
+    "relative_phase",
     "amplitude_ratio",
     "twin_peak_symmetry",
     "harmonic_decay_residual",
@@ -116,6 +128,27 @@ def phase_freedom_pvalue(t: np.ndarray, y: np.ndarray, T_base: float = 24.0) -> 
     return float(1.0 - f_dist.cdf(f_stat, 1, df))
 
 
+def relative_phase(t: np.ndarray, y: np.ndarray, T_base: float = 24.0) -> float:
+    """Relative phase delta = phi_12 - 2*phi_24 of the 12-h component, wrapped to (-pi, pi].
+
+    This is the effect-size companion to ``phase_freedom_pvalue`` (the phase axis, F1):
+    F1 *tests* whether the 12-h phase differs from the locked value (delta = 0); this is
+    the point *estimate* of that offset. It is NOT a model input by default — F1 already
+    carries the phase axis, and for a single series the raw offset is not discriminative
+    (a free-phase Class B can land near delta = 0 by chance) — but it is reported as an
+    interpretable readout of the phase-freedom axis.
+    """
+    t, y = _validate(t, y)
+    n = len(t); w = 2 * np.pi / T_base
+    x = np.column_stack([np.ones(n), np.cos(w * t), np.sin(w * t),
+                         np.cos(2 * w * t), np.sin(2 * w * t)])
+    b = np.linalg.lstsq(x, y, rcond=None)[0]
+    phi_24 = np.arctan2(b[2], b[1])
+    phi_12 = np.arctan2(b[4], b[3])
+    delta = phi_12 - 2.0 * phi_24
+    return float(np.mod(delta + np.pi, 2 * np.pi) - np.pi)
+
+
 def amplitude_ratio(t: np.ndarray, y: np.ndarray, T_base: float = 24.0) -> float:
     """A_12 / A_24 from a 2-harmonic fit. High -> B, mid -> A, low -> C."""
     t, y = _validate(t, y)
@@ -152,9 +185,9 @@ def harmonic_decay_residual(t: np.ndarray, y: np.ndarray, T_base: float = 24.0,
                             k: int = 4, noise_sd: Optional[float] = None) -> float:
     """Is the 12-h component a 'bump' above the smooth harmonic-amplitude decay?
 
-    Fits log(A_j) (floored at the NOISE amplitude, not 1e-9) ~ a + b*j through the
-    estimable harmonics j in {1, 3, 4} (those with A_j > 2*noise), predicts
-    log(A_2), returns residual = log(A_2) - log(A_2_pred).
+    Fits log(A_j) (floored at the OLS harmonic-amplitude noise scale, not 1e-9)
+    ~ a + b*j through the estimable harmonics j in {1, 3, 4} (those with
+    A_j > 2*floor), predicts log(A_2), returns residual = log(A_2) - log(A_2_pred).
 
     >> 0 : 12-h sticks above the decay -> extra component -> Class B.
     ~ 0  : 12-h lies on the decay -> harmonic of one waveform -> Class A.
@@ -166,8 +199,10 @@ def harmonic_decay_residual(t: np.ndarray, y: np.ndarray, T_base: float = 24.0,
     if n < 2 * k + 3:  # not enough dof for a k-harmonic fit
         return 0.0
     amps, _, fit_noise = _harmonic_fit(t, y, w, k)
-    floor = noise_sd if noise_sd is not None else fit_noise
-    floor = max(float(floor), 1e-9)
+    sigma = noise_sd if noise_sd is not None else fit_noise
+    # Convert per-observation residual SD to the harmonic-amplitude estimate scale.
+    # For complete-cycle sin/cos OLS, coefficient SE is approximately sigma*sqrt(2/n).
+    floor = max(float(sigma) * np.sqrt(2.0 / n), 1e-9)
     la = np.log(np.maximum(amps, floor))
     trend = [(j, amps[j - 1]) for j in (1, 3, 4)]
     valid = [(j, la[j - 1]) for j, a in trend if a > 2.0 * floor]
@@ -187,7 +222,7 @@ def harmonic_decay_residual(t: np.ndarray, y: np.ndarray, T_base: float = 24.0,
 class TernaryConfig:
     """Gates and abstention threshold for the ternary discriminator."""
     min_12h_snr: float = 1.0     # below this, no 12h to disentangle -> 'none'
-    min_24h_snr: float = 2.0     # 12h present but no 24h fundamental -> autonomous B
+    min_24h_snr: float = 2.0     # 12h present but no 24h fundamental -> 'ambiguous'
     abstain_prob: float = 0.55   # max class prob below this -> 'ambiguous'
     # 24h-dominance prior: a strong 24h fundamental with a 12h dwarfed by it (low
     # A_12/A_24) is most parsimoniously a harmonic (A), so move mass B->A. Grounded
@@ -206,7 +241,21 @@ DEFAULT_TERNARY_CONFIG = TernaryConfig()
 # ---------------------------------------------------------------------------
 def extract_features(t: np.ndarray, y: np.ndarray, T_base: float = 24.0,
                      noise_sd: Optional[float] = None) -> np.ndarray:
-    """Five sane, transformed features (see FEATURE_NAMES) for the calibrated model."""
+    """Five complementary transformed features (see FEATURE_NAMES) for the calibrated
+    model: phase-freedom (F1), log A12/A24, twin-peak symmetry, harmonic-decay residual,
+    and log 12h-SNR.
+
+    twin_peak_symmetry IS a model input. The locked-phase identity
+    rho = ((4r-1)/(4r+1))^2 (supp_analytic_lemmas.md) makes symmetry a deterministic
+    function of the amplitude ratio ONLY at the exactly phase-locked knife-edge; across
+    the broadened Class-C family (four structurally distinct intersection mechanisms —
+    harmonic ODE, rectified, saturating, product) the peak-symmetry axis is NOT redundant
+    with log A12/A24: it carries independent B-vs-C signal at low multicollinearity
+    (VIF ~1.1; scripts/feature_collinearity.py) and dropping it degrades the held-out
+    B-vs-C contrast (scripts/eval_ternary_refit.py). An earlier single-mechanism benchmark
+    made it look redundant; the diverse family corrected that. The phase axis is carried
+    by F1; ``relative_phase`` is reported as its effect size, not fed to the model.
+    """
     t, y = _validate(t, y)
     p_phase = phase_freedom_pvalue(t, y, T_base)
     amp_r = amplitude_ratio(t, y, T_base)
@@ -277,7 +326,7 @@ def _fit_multinomial(x: np.ndarray, y_idx: np.ndarray, n_classes: int,
 
 @dataclass
 class TernaryModel:
-    """Fitted multinomial logistic over the 4 orthogonal features."""
+    """Fitted multinomial logistic over the 5 orthogonal features."""
     classes: List[str]
     feat_mean: np.ndarray
     feat_std: np.ndarray
@@ -299,7 +348,8 @@ def fit_ternary_model(t: np.ndarray, expr: np.ndarray, labels: List[str],
 
     Only genes that pass both gates (detectable 12 h AND a 24 h fundamental) and
     carry an A/B/C label contribute — these are exactly the cases the model must
-    disambiguate (no-24h B and no-12h 'none' are handled by gates at predict time).
+    disambiguate (no-24h 'ambiguous' and no-12h 'none' are handled by gates at predict
+    time — the no-24h corner is unidentifiable, so it is not trained on).
     """
     cfg = config or DEFAULT_TERNARY_CONFIG
     if len(expr) != len(labels):
@@ -315,7 +365,7 @@ def fit_ternary_model(t: np.ndarray, expr: np.ndarray, labels: List[str],
         amps, _, noise = _harmonic_fit(tt, yy, 2 * np.pi / T_base, 2)
         if amps[1] / max(noise, 1e-9) < cfg.min_12h_snr:      # gate 1
             continue
-        if amps[0] / max(noise, 1e-9) < cfg.min_24h_snr:      # gate 2 (would be auto-B)
+        if amps[0] / max(noise, 1e-9) < cfg.min_24h_snr:      # gate 2 (no-24h: 'ambiguous')
             continue
         feats.append(extract_features(tt, yy, T_base, noise_sd=noise))
         ys.append(cidx[lab])
@@ -381,9 +431,15 @@ def disentangle_ternary(t: np.ndarray, y: np.ndarray, T_base: float = 24.0,
     if snr_12 < cfg.min_12h_snr:
         return {"class": "none", "autonomy_score": float("nan"),
                 "proba": None, "stats": stats}
-    # Gate 2: a 12-h with no 24-h fundamental cannot be a harmonic -> autonomous B.
+    # Gate 2 (identifiability floor): a 12-h with no detectable 24-h fundamental is
+    # unidentifiable — an autonomous oscillator (B) and a fundamental-suppressed
+    # intersection of two anti-phase 24-h processes (C) are indistinguishable from the
+    # waveform alone (both are near-pure 12-h). Forcing B here would silently mislabel a
+    # balanced intersection as autonomous (a falsification a reviewer can trip); abstain
+    # honestly instead. See scripts/measure_option_a_impact.py for the benchmark impact
+    # (headline gated-set AUCs are unaffected; this only relabels the no-24h corner).
     if snr_24 < cfg.min_24h_snr:
-        return {"class": "B_independent", "autonomy_score": 1.0,
+        return {"class": "ambiguous", "autonomy_score": float("nan"),
                 "proba": None, "stats": stats}
 
     mdl = model or get_default_model()

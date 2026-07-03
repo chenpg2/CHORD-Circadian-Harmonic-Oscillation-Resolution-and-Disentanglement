@@ -82,7 +82,7 @@ class TestSimulationGenerator:
 
     def test_generate_all_scenarios_count(self):
         scenarios = generate_all_scenarios(seed=0)
-        assert len(scenarios) == 15  # 12 original + 3 new harmonic waveforms
+        assert len(scenarios) == 16  # 12 original + 3 harmonic waveforms + intersection_harmonic
 
     def test_generate_genome_like(self):
         result = generate_genome_like(n_genes=50, seed=0)
